@@ -1,4 +1,4 @@
-//! slot cart studio. Four of slot's own source files are compiled here unchanged, so a preview
+//! slot cart studio. Six of slot's own source files are compiled here unchanged, so a preview
 //! is the device's cart face rather than an imitation of it. They reach each other through
 //! `crate::` paths, which is why they sit at the root. `art` is the one module swapped out:
 //! slot's reads a label from disk, and a browser has no disk.
@@ -19,6 +19,15 @@ mod silhouette;
 #[rustfmt::skip]
 #[path = "../../slot/crates/slot-ui/src/text.rs"]
 mod text;
+// slot-nes-snes's NES and SNES carts, which `cart.rs` reaches for: outlines, wells and plastic.
+#[allow(dead_code)]
+#[rustfmt::skip]
+#[path = "../../slot/crates/slot-ui/src/retro_cart.rs"]
+mod retro_cart;
+#[allow(dead_code)]
+#[rustfmt::skip]
+#[path = "../../slot/crates/slot-ui/src/retro_shell.rs"]
+mod retro_shell;
 
 mod art;
 pub mod choice;
@@ -176,11 +185,12 @@ pub struct JsLabel(label::Label);
 
 #[wasm_bindgen(js_class = Label)]
 impl JsLabel {
+    /// `well` is what `label_well` names for the cart: its card folder, or a NES or SNES variant.
     #[wasm_bindgen(constructor)]
     pub fn new(
         logo_png: &[u8],
         deep: &[u8],
-        platform: &str,
+        well: &str,
         band_edge: &str,
         band_size: f32,
         band_colour: &[u8],
@@ -191,7 +201,7 @@ impl JsLabel {
         label::Label::from_png(
             logo_png,
             [deep[0], deep[1], deep[2]],
-            face::platform_of(platform),
+            label::Well::parse(well),
             label::Band::parse(band_edge, band_size, band_colour),
         )
         .map(JsLabel)
@@ -199,8 +209,8 @@ impl JsLabel {
     }
 
     /// A whole label, used as it is: cropped to fill, never shrunk onto a ground.
-    pub fn full(png: &[u8], platform: &str) -> Result<JsLabel, JsError> {
-        label::Label::full(png, face::platform_of(platform))
+    pub fn full(png: &[u8], well: &str) -> Result<JsLabel, JsError> {
+        label::Label::full(png, label::Well::parse(well))
             .map(JsLabel)
             .ok_or_else(|| JsError::new("not a PNG this studio can read"))
     }
@@ -259,8 +269,29 @@ impl JsZip {
 
 /// The shell slot draws this cart in with no choice made.
 #[wasm_bindgen]
-pub fn auto_shell(platform: &str, code: &str, head: &[u8]) -> String {
-    choice::auto_shell(face::platform_of(platform), code, head)
+pub fn auto_shell(platform: &str, code: &str, head: &[u8], stem: &str) -> String {
+    choice::auto_shell(face::platform_of(platform), code, head, stem)
+}
+
+/// The well a cart's label is made for: its card folder for GBA and Game Boy, and for NES and
+/// SNES the variant slot draws it as (`nes`, `famicom`, `snes`, `sfc`), which its stem, its SNES
+/// header and its shell choice decide. A NES label and a Famicom label are different shapes.
+#[wasm_bindgen]
+pub fn label_well(platform: &str, head: &[u8], shell: &str, stem: &str) -> String {
+    face::retro_of(face::platform_of(platform), head, shell, stem)
+        .map_or_else(|| platform.to_string(), |kind| kind.name().to_string())
+}
+
+/// How many leading bytes a rom's CRC32 skips: a SNES copier header, nothing else.
+#[wasm_bindgen]
+pub fn crc_skip(platform: &str, len: f64) -> u32 {
+    rom::crc_skip(face::platform_of(platform), len as u64) as u32
+}
+
+/// What a SNES cart's head is to the studio: the three header windows slot probes.
+#[wasm_bindgen]
+pub fn snes_head(rom: &[u8]) -> Vec<u8> {
+    slot_store::snes::head(rom)
 }
 
 #[wasm_bindgen]

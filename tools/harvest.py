@@ -59,15 +59,23 @@ PLATFORMS = {
     'GBA': 'Nintendo - Game Boy Advance',
     'GB': 'Nintendo - Game Boy',
     'GBC': 'Nintendo - Game Boy Color',
+    # slot-nes-snes's. This NES dat lists headered dumps, so a .nes is hashed whole.
+    'NES': 'Nintendo - Nintendo Entertainment System',
+    'SNES': 'Nintendo - Super Nintendo Entertainment System',
 }
-EXTENSIONS = {'GBA': ('.gba',), 'GB': ('.gb', '.gbc'), 'GBC': ('.gb', '.gbc')}
+EXTENSIONS = {'GBA': ('.gba',), 'GB': ('.gb', '.gbc'), 'GBC': ('.gb', '.gbc'),
+              'NES': ('.nes',), 'SNES': ('.sfc', '.smc')}
 
 # ScreenScraper's own system ids. They are named "Game Boy Color", not libretro's "Nintendo -
 # Game Boy Color", so there is no shared name to look them up by. Stated here and then checked
 # against the live list at startup: a renumbering upstream would otherwise file one console's art
-# under another's name, silently and for the whole run.
-SS_SYSTEM = {'GB': 9, 'GBC': 10, 'GBA': 12}
-SS_EXPECT = {'GB': 'game boy', 'GBC': 'game boy color', 'GBA': 'game boy advance'}
+# under another's name, silently and for the whole run. Only the platforms a run harvests are
+# checked, so a wrong NES or SNES name below can never stop a Game Boy run.
+SS_SYSTEM = {'GB': 9, 'GBC': 10, 'GBA': 12, 'NES': 3, 'SNES': 4}
+# NES and SNES: ids from slot-nes-snes's tools/fetch-labels.py; the names are unverified until a
+# run with a ScreenScraper developer id, and a mismatch stops that run rather than guessing.
+SS_EXPECT = {'GB': 'game boy', 'GBC': 'game boy color', 'GBA': 'game boy advance',
+             'NES': 'nes', 'SNES': 'super nintendo'}
 
 # Where each media lands, in the layout libretro uses and the studio already fetches.
 # A media's own name is its folder: <platform>/<media type>/<crc>.png. The platform folders are
@@ -182,8 +190,8 @@ def dat_entries(platform):
     return out
 
 
-def check_systems(c):
-    """Hold ScreenScraper to the ids above, by the name it gives each one."""
+def check_systems(c, platforms):
+    """Hold ScreenScraper to the ids above for `platforms`, by the name it gives each one."""
     data = call('systemesListe.php', c)
     listed = (data or {}).get('response', {}).get('systemes', [])
     if not listed:
@@ -194,7 +202,8 @@ def check_systems(c):
             names[int(s['id'])] = str((s.get('noms') or {}).get('nom_eu', '')).strip().lower()
         except (TypeError, ValueError):
             continue
-    for platform, sid in SS_SYSTEM.items():
+    for platform in platforms:
+        sid = SS_SYSTEM[platform]
         got = names.get(sid)
         if got is None:
             sys.exit(f'ScreenScraper lists no system {sid}, which this expects to be {platform}')
@@ -203,9 +212,16 @@ def check_systems(c):
     return SS_SYSTEM
 
 
-def crc32(path):
+def crc_skip(platform, size):
+    """A SNES copier header (512 bytes, when the size is 512 past a whole KiB) is not in the dat's
+    CRC. Everything else, a NES rom's iNES header included, is hashed whole."""
+    return 512 if platform == 'SNES' and size % 1024 == 512 else 0
+
+
+def crc32(path, platform):
     h = 0
     with open(path, 'rb') as f:
+        f.seek(crc_skip(platform, Path(path).stat().st_size))
         while chunk := f.read(1 << 20):
             h = zlib.crc32(chunk, h)
     return f'{h & 0xffffffff:08X}'
@@ -283,7 +299,7 @@ def roms(card, platform):
 def probe(path, c, ids):
     platform = Path(path).parent.name.upper()
     system = ids.get(platform)
-    data = call('jeuInfos.php', dict(c, crc=crc32(path), systemeid=system or '',
+    data = call('jeuInfos.php', dict(c, crc=crc32(path, platform), systemeid=system or '',
                                      romnom=Path(path).name,
                                      romtaille=str(Path(path).stat().st_size)))
     jeu = (data or {}).get('response', {}).get('jeu')
@@ -315,13 +331,17 @@ def main():
     args = ap.parse_args()
 
     c = creds()
-    ids = check_systems(c)
 
     if args.probe:
-        probe(args.probe, c, ids)
+        platform = Path(args.probe).parent.name.upper()
+        probe(args.probe, c, check_systems(c, [platform] if platform in SS_SYSTEM else []))
         return
     if not args.out or not (args.card or args.dat):
         sys.exit('--out plus one of --card or --dat is needed (or --probe)')
+    chosen = list(PLATFORMS) if args.dat == 'all' else ([args.dat] if args.dat else list(PLATFORMS))
+    if args.card:
+        chosen = [p for p in chosen if roms(args.card, p)]
+    ids = check_systems(c, chosen)
 
     q = quota(c)
     left = None if q['per_day'] is None else max(0, q['per_day'] - q['today'])
@@ -412,7 +432,6 @@ def main():
         time.sleep(pause)
 
     try:
-        chosen = list(PLATFORMS) if args.dat == 'all' else ([args.dat] if args.dat else list(PLATFORMS))
         for platform in chosen:
             if stop.is_set():
                 break
@@ -421,7 +440,7 @@ def main():
                 # Every rom on the card, whether No-Intro knows it or not: a file is named for its
                 # checksum, so a dump nobody has catalogued still has somewhere to go. Only a
                 # sweep of a whole platform needs the dat, because only that needs a list.
-                jobs = [(crc32(p), p.name, p.stat().st_size) for p in roms(args.card, platform)]
+                jobs = [(crc32(p, platform), p.name, p.stat().st_size) for p in roms(args.card, platform)]
             else:
                 jobs = [(crc, f'{name}.bin', 0) for crc, name in entries.items()]
             if not jobs:

@@ -12,14 +12,17 @@ import init, {
   layered_cart_shells,
   cart_size,
   clean_label,
+  crc_skip,
   existing_face,
   fallback_hue,
   header_code,
   label_tags,
+  label_well,
   logo_luma,
   merge_cart_shells,
   shell_key_ok,
   shell_presets,
+  snes_head,
   stop_colours,
   stub_target,
   thumbnail_name,
@@ -36,6 +39,9 @@ const $ = (id) => document.getElementById(id);
 const limit = limiter(4);
 // The GBA game code sits at 0xAC and the Game Boy header ends at 0x150; nothing past that is read.
 const HEAD = 0x150;
+// slot-nes-snes's platforms. A NES cart's variant comes from its stem, a SNES cart's from the
+// region byte in a header that can sit 4 MiB in, so a SNES rom is read whole for it.
+const RETRO = ['NES', 'SNES'];
 const FATAL = 'The studio ran out of memory or hit an internal error. Reload the page to start again.';
 const BUILD = 'dev';
 
@@ -68,7 +74,8 @@ function newCart({ platform, stem, file }) {
     stem,
     file,
     code: '',
-    // A Game Boy pak's header, which picks its shell and plastic. Empty on a GBA cart.
+    // A Game Boy pak's header, which picks its shell and plastic; a SNES cart's header windows,
+    // which pick its variant. Empty on a GBA or NES cart.
     head: new Uint8Array(0),
     shell: '',
     shellOnCard: '',
@@ -192,11 +199,15 @@ function withLabel(bytes, deep, platform, use, band = null) {
   }
 }
 
+// The well the cart's label is made for: its folder, or the NES or SNES variant slot draws, which
+// a shell choice can change.
+const wellOf = (c) => label_well(c.platform, c.head, c.shell, c.stem);
+
 function withKindLabel(c, kind, use) {
   if (kind === 'real' || kind === 'customLabel') {
     const bytes = kind === 'real' ? realBytesOf(c) : c.customLabelBytes;
     if (!bytes) return null;
-    const label = Label.full(bytes, c.platform);
+    const label = Label.full(bytes, wellOf(c));
     try {
       return use(label);
     } finally {
@@ -207,7 +218,7 @@ function withKindLabel(c, kind, use) {
   if (!bytes) return null;
   const look = kind === 'logo' ? c.look : null;
   const deep = c.deep ?? look?.ground ?? Array.from(stop_colours(baseHueOf(c), lumaOf(c, kind))).slice(0, 3);
-  return withLabel(bytes, deep, c.platform, use, look?.band ?? null);
+  return withLabel(bytes, deep, wellOf(c), use, look?.band ?? null);
 }
 
 const withCartLabel = (c, use) => withKindLabel(c, wearing(c).kind, use);
@@ -218,7 +229,7 @@ function faceFor(c, kind) {
   if (kind === 'card') return c.existing;
   if (kind === 'none') return existing_face(new Uint8Array(0), c.platform, c.code, c.head, c.shell, c.stem);
   if (kind === 'unfilled') {
-    const label = Label.full(BLANK, c.platform);
+    const label = Label.full(BLANK, wellOf(c));
     try {
       return label.face(c.platform, c.code, c.head, c.shell, c.stem);
     } finally {
@@ -380,7 +391,7 @@ async function redress(s, c) {
 }
 
 const choiceOf = (c) => {
-  const [outline, colour, finish] = (c.shell || auto_shell(c.platform, c.code, c.head)).split(' ');
+  const [outline, colour, finish] = (c.shell || auto_shell(c.platform, c.code, c.head, c.stem)).split(' ');
   return { outline, colour, finish };
 };
 
@@ -538,9 +549,10 @@ async function open(source) {
   track(identify(session));
 }
 
-async function crcOf(file) {
+// Hashed the way the platform's dat is: a SNES copier header is left out.
+async function crcOf(platform, file) {
   const crc = new Crc32();
-  const reader = file.stream().getReader();
+  const reader = file.slice(crc_skip(platform, file.size)).stream().getReader();
   for (;;) {
     const { done, value } = await reader.read();
     if (done) return crc.finish();
@@ -584,7 +596,8 @@ async function identify(s) {
       // Only a GBA rom carries a game code. On a Game Boy cart 0xAC is inside the RST vectors,
       // so a code read from there is opcode bytes dressed up as one.
       c.code = c.platform === 'GBA' ? header_code(head) : '';
-      if (c.platform !== 'GBA') c.head = head;
+      if (c.platform === 'GB' || c.platform === 'GBC') c.head = head;
+      if (c.platform === 'SNES') c.head = snes_head(new Uint8Array(await file.arrayBuffer()));
       const label = s.source.labels.get(labelKey(c.platform, c.stem));
       if (label) {
         const bytes = new Uint8Array(await (await label()).arrayBuffer());
@@ -593,7 +606,7 @@ async function identify(s) {
         c.existing = existing_face(bytes, c.platform, c.code, c.head, c.shell, c.stem);
         c.looking = false;
       } else {
-        c.crc = await crcOf(file);
+        c.crc = await crcOf(c.platform, file);
       }
     } catch (e) {
       if (trapped(e)) return;
@@ -659,6 +672,15 @@ async function art(s, c) {
 // Where the set files this cart's art: under its own checksum while its game is the one that
 // checksum names, else under the first dump of the game chosen for it that the set has.
 function artKey(c) {
+  const key = anyArtKey(c);
+  // A NES or SNES cart takes only art filed under its own folder, so a checksum another console's
+  // dump shares can never dress it in that console's label.
+  if (!RETRO.includes(c.platform) || !key) return key;
+  const paths = Object.values(artIndex?.[key] ?? {}).filter((v) => typeof v === 'string');
+  return paths.every((p) => p.startsWith(`${c.platform}/`)) ? key : null;
+}
+
+function anyArtKey(c) {
   const own = c.crc === null ? null : crcHex(c.crc);
   const db = dats.get(c.platform);
   if (!c.game || !db || (c.crc !== null && db.game_for(c.crc) === c.game)) return own;
@@ -713,7 +735,13 @@ const platformsOf = (s) => PLATFORMS.filter((p) => s.carts.some((c) => c.platfor
 
 // A tab per platform on the card, with what it holds. One platform is no choice at all, so a
 // card of nothing but GBA carts shows no switcher and reads exactly as it did before.
-const PLATFORM_NAMES = { GBA: 'Game Boy Advance', GB: 'Game Boy', GBC: 'Game Boy Color' };
+const PLATFORM_NAMES = {
+  GBA: 'Game Boy Advance',
+  GB: 'Game Boy',
+  GBC: 'Game Boy Color',
+  NES: 'NES',
+  SNES: 'Super NES',
+};
 
 function renderTabs() {
   const s = session;
@@ -991,7 +1019,7 @@ function shellOf(c) {
 async function lookUp(s, c) {
   paint(c);
   try {
-    if (c.crc === null) c.crc = await crcOf(await c.file());
+    if (c.crc === null) c.crc = await crcOf(c.platform, await c.file());
     if (!dats.has(c.platform)) dats.set(c.platform, Dat.parse(await fetchDat(c.platform)));
     if (s !== session || fatal) return;
     c.game = dats.get(c.platform).game_for(c.crc) ?? null;

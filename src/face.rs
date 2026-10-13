@@ -4,6 +4,8 @@ use std::path::Path;
 
 use slot_store::Platform;
 
+use crate::retro_cart::retro_shell_of;
+pub use crate::retro_cart::RetroShell;
 use crate::{art, cart};
 
 /// The platform a card folder names. It picks the GBA cart or a Game Boy pak; which pak, and
@@ -13,8 +15,27 @@ pub fn platform_of(dir: &str) -> Platform {
     match dir {
         "GB" => Platform::Gb,
         "GBC" => Platform::Gbc,
+        "NES" => Platform::Nes,
+        "SNES" => Platform::Snes,
         _ => Platform::Gba,
     }
+}
+
+/// The NES or SNES variant slot draws this cart as, by slot's own rule: a shell word for the
+/// cart's platform, else the stem's region tags (NES) or the header's region byte (SNES).
+/// `None` for GBA and Game Boy carts.
+pub fn retro_of(platform: Platform, head: &[u8], shell: &str, stem: &str) -> Option<RetroShell> {
+    slot_store::gb::with_header(head, |rom| {
+        retro_shell_of(&slot_store::Cart {
+            platform,
+            stem: stem.to_string(),
+            rom: rom.to_path_buf(),
+            label: None,
+            title: String::new(),
+            code: String::new(),
+            shell: slot_store::ShellChoice::parse(shell),
+        })
+    })
 }
 
 /// Slot's `cart_face` reads a cart's label through `art::cover` and its pak's header through

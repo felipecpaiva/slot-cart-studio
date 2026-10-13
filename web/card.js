@@ -5,12 +5,13 @@
 // slot files a cart under the folder its platform names, in Games/, Labels/, Saves/ and States/
 // alike, and the folder is what decides the platform: the rom is never opened to ask.
 // Listed newest first, which is the order the studio's shelves and tabs run in.
-export const PLATFORMS = ['GBA', 'GBC', 'GB'];
+// NES and SNES are slot-nes-snes's, the patch set this fork of the studio is built against.
+export const PLATFORMS = ['GBA', 'GBC', 'SNES', 'GB', 'NES'];
 
 // slot's own rule, from slot-store's platform.rs. A .gba under GB/ is not a Game Boy cart and is
 // passed over in silence, the way slot passes over it.
-const EXTENSIONS = { GBA: ['gba'], GB: ['gb', 'gbc'], GBC: ['gb', 'gbc'] };
-const ANY_ROM = ['gba', 'gb', 'gbc'];
+const EXTENSIONS = { GBA: ['gba'], GB: ['gb', 'gbc'], GBC: ['gb', 'gbc'], NES: ['nes'], SNES: ['sfc', 'smc'] };
+const ANY_ROM = ['gba', 'gb', 'gbc', 'nes', 'sfc', 'smc'];
 
 const named = (dir) => PLATFORMS.find((p) => p === dir.toUpperCase());
 const ext = (name) => name.slice(name.lastIndexOf('.') + 1).toLowerCase();
@@ -41,7 +42,7 @@ const UNREADABLE =
 const OLD_SHELL_FILE =
   'This browser can’t open cart_shell.ini. Start the latest slot once, then choose the card again.';
 const OLD_LAYOUT =
-  'This card keeps its roms loose in Games, where slot doesn’t look. Move them into the GBA, GB and GBC folders inside Games, then choose the card again.';
+  'This card keeps its roms loose in Games, where slot doesn’t look. Move them into the GBA, GB, GBC, NES and SNES folders inside Games, then choose the card again.';
 
 export async function fromDirectory(root) {
   let games;

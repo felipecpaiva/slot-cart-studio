@@ -178,9 +178,29 @@ test('a folder with files but no games is still not a slot card', () => {
 
 test('roms loose in Games ask to be moved into platform folders by hand', async () => {
   const loose = { Games: { 'A.gba': '' } };
-  const asks = { message: /Move them into the GBA, GB and GBC folders/ };
+  const asks = { message: /Move them into the GBA, GB, GBC, NES and SNES folders/ };
   await assert.rejects(fromDirectory(dirHandle(loose)), asks);
   assert.throws(() => fromFiles(listed(loose)), asks);
+  const looseSnes = { Games: { 'A.sfc': '' } };
+  await assert.rejects(fromDirectory(dirHandle(looseSnes)), asks);
+});
+
+test('NES and SNES carts are found under their own folders, by slot-nes-snes’s extensions', async () => {
+  const tree = {
+    Games: {
+      NES: { 'Zelda (USA).nes': '', 'Mario (Japan).nes': '', 'Stray.sfc': '', '._Zelda (USA).nes': '' },
+      SNES: { 'World (USA).sfc': '', 'World (Japan).smc': '', 'Stray.nes': '' },
+      GBA: { 'A.gba': '' },
+    },
+    Labels: { NES: { 'Zelda (USA).png': '' }, SNES: { 'World (Japan).png': '' } },
+  };
+  for (const source of [await fromDirectory(dirHandle(tree)), fromFiles(listed(tree))]) {
+    assert.deepEqual(
+      source.carts.map((c) => `${c.platform}/${c.stem}`),
+      ['GBA/A', 'SNES/World (Japan)', 'SNES/World (USA)', 'NES/Mario (Japan)', 'NES/Zelda (USA)'],
+    );
+    assert.deepEqual([...source.labels.keys()].sort(), ['NES/Zelda (USA)', 'SNES/World (Japan)']);
+  }
 });
 
 test('a card without shell files reads as empty where the browser refuses .ini names', async () => {

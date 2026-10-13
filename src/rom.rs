@@ -1,6 +1,8 @@
 //! What the page needs from a ROM's bytes: its game code, for the shell colour, and its CRC32,
 //! to find it in the No-Intro DAT.
 
+use slot_store::Platform;
+
 /// The four character game code at 0xAC, read the way `slot_store::gba` reads it: up to the
 /// first NUL, trimmed, and empty when there's nothing there. A cart then gets the same shell it
 /// gets on the device.
@@ -12,6 +14,17 @@ pub fn header_code(head: &[u8]) -> String {
     std::str::from_utf8(&field[..end])
         .map(|s| s.trim().to_string())
         .unwrap_or_default()
+}
+
+/// The bytes a rom's CRC32 starts after, by the rule the No-Intro dats are hashed under: a SNES
+/// rom drops a 512-byte copier header, which a file has when its size is 512 past a whole KiB.
+/// A NES rom is hashed whole, iNES header included, as libretro's NES dat lists it.
+pub fn crc_skip(platform: Platform, len: u64) -> u64 {
+    if platform == Platform::Snes && len % 1024 == 512 {
+        512
+    } else {
+        0
+    }
 }
 
 /// A ROM is up to 32 MB and the page reads it as a stream, so the hash is fed in pieces.
@@ -53,6 +66,16 @@ mod tests {
             parts.update(chunk);
         }
         assert_eq!(whole.finish(), parts.finish());
+    }
+
+    #[test]
+    fn only_a_snes_copier_header_is_skipped() {
+        assert_eq!(crc_skip(Platform::Snes, 32768 + 512), 512);
+        assert_eq!(crc_skip(Platform::Snes, 32768), 0);
+        assert_eq!(crc_skip(Platform::Snes, 32768 + 16), 0);
+        assert_eq!(crc_skip(Platform::Nes, 16384 + 16), 0);
+        assert_eq!(crc_skip(Platform::Nes, 16384 + 512), 0);
+        assert_eq!(crc_skip(Platform::Gba, 1024 + 512), 0);
     }
 
     #[test]

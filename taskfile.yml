@@ -6,9 +6,18 @@ vars:
   # src/art.rs copies, the assets they include, where `Cart` comes from, gba.rs, whose header
   # rule src/rom.rs mirrors, gb.rs, whose header the shim answers for, and ini.rs and
   # cart_shell.rs, which the shell choice is read and merged through.
+  # slot-nes-snes adds retro_cart.rs and retro_shell.rs (compiled in place too), nes.rs and
+  # snes.rs (the variant read; the shim restates snes.rs's header rules) and the NES/SNES assets.
   FACE_PATHS: >-
     crates/slot-ui/src/cart.rs crates/slot-ui/src/shell.rs crates/slot-ui/src/silhouette.rs
-    crates/slot-ui/src/text.rs crates/slot-ui/src/art.rs crates/slot-ui/assets/cart.svg
+    crates/slot-ui/src/text.rs crates/slot-ui/src/art.rs crates/slot-ui/src/retro_cart.rs
+    crates/slot-ui/src/retro_shell.rs crates/slot-store/src/nes.rs crates/slot-store/src/snes.rs
+    crates/slot-ui/assets/nes_cart.svg crates/slot-ui/assets/nes_cart_detail.svg
+    crates/slot-ui/assets/famicom_cart.svg crates/slot-ui/assets/famicom_cart_detail.svg
+    crates/slot-ui/assets/snes_cart.svg crates/slot-ui/assets/snes_cart_detail.svg
+    crates/slot-ui/assets/sfc_cart.svg crates/slot-ui/assets/sfc_cart_detail.svg
+    crates/slot-ui/assets/lettering_nes.png crates/slot-ui/assets/lettering_snes.png
+    crates/slot-ui/assets/cart.svg
     crates/slot-ui/assets/cart_detail.svg crates/slot-ui/assets/gb_cart.svg
     crates/slot-ui/assets/gb_cart_detail.svg crates/slot-ui/assets/gbc_cart.svg
     crates/slot-ui/assets/gbc_cart_detail.svg crates/slot-ui/assets/lettering_gb.png

@@ -56,5 +56,45 @@ class Redo(unittest.TestCase):
         self.assertEqual(harvest.todo_for('AAAA0000', ['wheel', 'look'], index, root, relook=False, redo=True), ['wheel', 'look'])
 
 
+class NesSnes(unittest.TestCase):
+    def test_a_snes_copier_header_is_left_out_and_a_nes_rom_is_hashed_whole(self):
+        import zlib
+        d = Path(tempfile.mkdtemp())
+        body = bytes(range(256)) * 128
+        (d / 'clean.sfc').write_bytes(body)
+        (d / 'copier.smc').write_bytes(b'\xaa' * 512 + body)
+        want = f'{zlib.crc32(body):08X}'
+        self.assertEqual(harvest.crc32(d / 'clean.sfc', 'SNES'), want)
+        self.assertEqual(harvest.crc32(d / 'copier.smc', 'SNES'), want)
+        nes = b'NES\x1a' + b'\x00' * 12 + body[:16384]
+        (d / 'x.nes').write_bytes(nes)
+        self.assertEqual(harvest.crc32(d / 'x.nes', 'NES'), f'{zlib.crc32(nes):08X}')
+        # A Game Boy rom 512 past a KiB is still hashed whole, as before.
+        whole = (d / 'copier.smc').read_bytes()
+        self.assertEqual(harvest.crc32(d / 'copier.smc', 'GB'), f'{zlib.crc32(whole):08X}')
+
+    def test_only_the_platforms_a_run_harvests_are_held_to_their_names(self):
+        listed = {'response': {'systemes': [
+            {'id': 9, 'noms': {'nom_eu': 'Game Boy'}},
+            {'id': 3, 'noms': {'nom_eu': 'Something Else'}},
+        ]}}
+        real = harvest.call
+        harvest.call = lambda endpoint, params: listed
+        try:
+            self.assertEqual(harvest.check_systems({}, ['GB'])['GB'], 9)
+            with self.assertRaises(SystemExit):
+                harvest.check_systems({}, ['NES'])
+        finally:
+            harvest.call = real
+
+    def test_nes_and_snes_cards_are_read_from_their_own_folders(self):
+        card = Path(tempfile.mkdtemp())
+        (card / 'Games' / 'SNES').mkdir(parents=True)
+        for name in ('A.sfc', 'B.smc', 'C.nes', '.D.sfc'):
+            (card / 'Games' / 'SNES' / name).write_bytes(b'x')
+        self.assertEqual([p.name for p in harvest.roms(card, 'SNES')], ['A.sfc', 'B.smc'])
+        self.assertEqual(harvest.roms(card, 'NES'), [])
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -98,11 +98,11 @@ fn automatic_is_what_slot_would_draw_and_presets_are_values() {
     head[0x143] = 0xc0;
     head[0x14a] = 1;
     assert_eq!(
-        choice::auto_shell(slot_store::Platform::Gbc, "", &head),
+        choice::auto_shell(slot_store::Platform::Gbc, "", &head, ""),
         "auto 86b9bf glitter"
     );
     assert_eq!(
-        choice::auto_shell(slot_store::Platform::Gba, "AMTE", &[]),
+        choice::auto_shell(slot_store::Platform::Gba, "AMTE", &[], ""),
         "auto 35353a solid"
     );
     let presets = choice::presets();

@@ -19,12 +19,13 @@ fn value_of(s: Shell) -> String {
     .to_value()
 }
 
-/// The shell slot picks for this cart with no choice made, as a value.
-pub fn auto_shell(platform: Platform, code: &str, head: &[u8]) -> String {
+/// The shell slot picks for this cart with no choice made, as a value. A NES or SNES cart's
+/// plastic follows its title and variant, so the stem is part of the question.
+pub fn auto_shell(platform: Platform, code: &str, head: &[u8], stem: &str) -> String {
     slot_store::gb::with_header(head, |rom| {
         value_of(shell::shell_for(&Cart {
             platform,
-            stem: String::new(),
+            stem: stem.to_string(),
             rom: rom.to_path_buf(),
             label: None,
             title: String::new(),

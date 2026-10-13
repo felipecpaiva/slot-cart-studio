@@ -176,6 +176,10 @@ export function createEditor(api) {
     press('ed-finish', shell.finish);
     enable('ed-finish', shells && !shell.auto);
     $('ed-outline-row').hidden = c.platform === 'GBA';
+    // Each outline belongs to its own platform's carts; slot ignores a word from another one.
+    for (const b of $('ed-outline').querySelectorAll('[data-for]')) {
+      b.hidden = !b.dataset.for.split(' ').includes(c.platform);
+    }
     press('ed-outline', shell.outline);
     enable('ed-outline', shells);
 

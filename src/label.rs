@@ -3,6 +3,7 @@
 use resvg::tiny_skia::{FilterQuality, IntSize, Pixmap, PixmapPaint, Transform};
 use slot_store::Platform;
 
+use crate::retro_cart::{NesShell, RetroShell, SnesShell};
 use crate::{art, face, hue};
 
 pub const W: u32 = 1280;
@@ -15,11 +16,68 @@ pub const H: u32 = 661;
 pub const GB_W: u32 = 1024;
 pub const GB_H: u32 = 901;
 
-/// The label a platform's well wants.
-pub fn size(platform: Platform) -> (u32, u32) {
-    match platform {
-        Platform::Gba => (W, H),
-        Platform::Gb | Platform::Gbc => (GB_W, GB_H),
+/// A NES or SNES label's long side. The well's own shape, read from slot, at about the GB
+/// label's cost in wasm memory.
+pub const RETRO_LONG: u32 = 1024;
+
+/// The well a label is made for. GBA and Game Boy wells follow the platform; a NES or SNES well
+/// follows the variant slot draws the cart as, so a NES label and a Famicom label differ.
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub enum Well {
+    Gba,
+    Gb,
+    Retro(RetroShell),
+}
+
+impl From<Platform> for Well {
+    /// A platform's usual well: its default variant for NES and SNES.
+    fn from(platform: Platform) -> Well {
+        match platform {
+            Platform::Gba => Well::Gba,
+            Platform::Gb | Platform::Gbc => Well::Gb,
+            Platform::Nes => Well::Retro(RetroShell::Nes(NesShell::Nes)),
+            Platform::Snes => Well::Retro(RetroShell::Snes(SnesShell::Snes)),
+        }
+    }
+}
+
+impl Well {
+    /// A card folder (`GBA`, `GB`, `GBC`, `NES`, `SNES`) or a variant's shell word (`nes`,
+    /// `famicom`, `snes`, `sfc`), as `label_well` gives the page.
+    pub fn parse(key: &str) -> Well {
+        RetroShell::ALL
+            .into_iter()
+            .find(|kind| kind.name() == key)
+            .map_or_else(|| face::platform_of(key).into(), Well::Retro)
+    }
+
+    /// The label box slot cuts in this well's cart, in cart pixels.
+    pub fn label_box(self) -> (u32, u32) {
+        match self {
+            Well::Gba => (crate::cart::LABEL_W, crate::cart::LABEL_H),
+            Well::Gb => (crate::cart::GB_LABEL_W, crate::cart::GB_LABEL_H),
+            Well::Retro(kind) => {
+                let (_, _, w, h) = crate::retro_cart::look(kind).label;
+                (w, h)
+            }
+        }
+    }
+}
+
+/// The label a well wants. A NES or SNES label is its box scaled up whole, so slot's cover shows
+/// all of it.
+pub fn size(well: impl Into<Well>) -> (u32, u32) {
+    match well.into() {
+        Well::Gba => (W, H),
+        Well::Gb => (GB_W, GB_H),
+        well => {
+            let (w, h) = well.label_box();
+            let long = w.max(h);
+            (
+                (w * RETRO_LONG + long / 2) / long,
+                (h * RETRO_LONG + long / 2) / long,
+            )
+        }
     }
 }
 
@@ -214,11 +272,14 @@ impl Band {
 
 /// The part of a label slot shows, as x0, y0, x1, y1. slot covers its well with the label, so a
 /// label of another shape loses rows or columns.
+/// A NES or SNES label is made at its own well's shape, so slot shows all of it.
 fn shown(lw: u32, lh: u32) -> (u32, u32, u32, u32) {
     let (ww, wh) = if (lw, lh) == (W, H) {
         (crate::cart::LABEL_W, crate::cart::LABEL_H)
-    } else {
+    } else if (lw, lh) == (GB_W, GB_H) {
         (crate::cart::GB_LABEL_W, crate::cart::GB_LABEL_H)
+    } else {
+        return (0, 0, lw, lh);
     };
     let well = ww as f32 / wh as f32;
     if lw as f32 / lh as f32 > well {
@@ -303,11 +364,11 @@ impl Label {
     pub fn from_png(
         png: &[u8],
         deep: [u8; 3],
-        platform: Platform,
+        well: impl Into<Well>,
         band: Option<Band>,
     ) -> Option<Label> {
         let (logo, w, h) = art::decode(png)?;
-        let (lw, lh) = size(platform);
+        let (lw, lh) = size(well);
         let rgba = compose(&logo, w, h, lw, lh, deep, pale_for(deep), band);
         Some(Label {
             logo: Some((logo, w, h)),
@@ -321,9 +382,9 @@ impl Label {
 
     /// A whole label, cropped to fill the platform's label as slot's cover would, so nothing of
     /// it is shrunk. Transparent pixels go over black, as the opaque PNG written for it has them.
-    pub fn full(png: &[u8], platform: Platform) -> Option<Label> {
+    pub fn full(png: &[u8], well: impl Into<Well>) -> Option<Label> {
         let (art, w, h) = art::decode(png)?;
-        let (lw, lh) = size(platform);
+        let (lw, lh) = size(well);
         let mut rgba = art::cover_rgba(&art, w, h, lw, lh)?;
         for p in rgba.chunks_exact_mut(4) {
             let a = p[3] as u32;

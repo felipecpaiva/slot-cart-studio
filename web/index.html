@@ -60,9 +60,10 @@
   <section class="grid" id="grid" aria-label="Carts"></section>
 
   <footer class="credits">
+    <p>Cart Studio is <a href="https://github.com/BrandonKowalski/slot-cart-studio">Brandon Kowalski’s</a> (GPL-3.0-or-later). This fork adds NES and SNES for <a href="https://github.com/felipecpaiva/slot-nes-snes">slot-nes-snes</a>.</p>
     <p>Game names and CRCs from <a href="https://github.com/libretro/libretro-database">libretro-database</a> (<a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>).</p>
     <p>Game logos from <a href="https://www.screenscraper.fr/">ScreenScraper</a> (<a href="https://creativecommons.org/licenses/by-nc-sa/4.0/">CC BY-NC-SA 4.0</a>).</p>
-    <p>Game Boy is a trademark of Nintendo. Not affiliated with Nintendo.</p>
+    <p>Game Boy, NES, Super NES, Famicom and Super Famicom are trademarks of Nintendo. Not affiliated with Nintendo.</p>
     <p id="build"></p>
   </footer>
 </main>
@@ -147,8 +148,12 @@
       <div class="v">
         <div class="seg" id="ed-outline" role="group" aria-label="Outline">
           <button type="button" data-value="auto">Auto</button>
-          <button type="button" data-value="notched">Notched</button>
-          <button type="button" data-value="rounded">Rounded</button>
+          <button type="button" data-value="notched" data-for="GB GBC">Notched</button>
+          <button type="button" data-value="rounded" data-for="GB GBC">Rounded</button>
+          <button type="button" data-value="nes" data-for="NES">NES</button>
+          <button type="button" data-value="famicom" data-for="NES">Famicom</button>
+          <button type="button" data-value="snes" data-for="SNES">SNES</button>
+          <button type="button" data-value="sfc" data-for="SNES">Super Famicom</button>
         </div>
       </div>
     </div>

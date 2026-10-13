@@ -13,6 +13,9 @@ const NAMES = {
   GBA: 'Nintendo - Game Boy Advance',
   GB: 'Nintendo - Game Boy',
   GBC: 'Nintendo - Game Boy Color',
+  // This NES dat lists headered dumps (16400 bytes for a 16 KiB rom), so a .nes is hashed whole.
+  NES: 'Nintendo - Nintendo Entertainment System',
+  SNES: 'Nintendo - Super Nintendo Entertainment System',
 };
 
 export async function fetchDat(platform) {
