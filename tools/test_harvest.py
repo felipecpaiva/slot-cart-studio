@@ -95,6 +95,19 @@ class NesSnes(unittest.TestCase):
         self.assertEqual([p.name for p in harvest.roms(card, 'SNES')], ['A.sfc', 'B.smc'])
         self.assertEqual(harvest.roms(card, 'NES'), [])
 
+    def test_a_developer_only_login_never_asks_for_member_limits(self):
+        asked = []
+        real = harvest.call
+        harvest.call = lambda endpoint, params: asked.append(endpoint) or {}
+        try:
+            q = harvest.quota({'devid': 'd', 'devpassword': 'p'})
+            self.assertEqual(asked, [])
+            self.assertEqual((q['per_min'], q['per_day'], q['threads']), (None, None, 1))
+            harvest.quota({'devid': 'd', 'devpassword': 'p', 'ssid': 'u', 'sspassword': 'x'})
+            self.assertEqual(asked, ['ssuserInfos.php'])
+        finally:
+            harvest.call = real
+
 
 if __name__ == '__main__':
     unittest.main()

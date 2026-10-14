@@ -24,27 +24,29 @@ two consoles to slot. Game Boy and GBA carts behave exactly as in the original.
   when its size is 512 past a whole KiB.
 - `tools/harvest.py` knows NES (ScreenScraper system 3) and SNES (system 4).
 
-NES and SNES carts get a real label or a logo only from an art set that files them under
-`NES/` or `SNES/`. Brandon's set at art.slot-cfw.fyi has GB, GBC and GBA art only, so until a
-NES/SNES harvest exists (it needs a ScreenScraper developer id) those carts fall back to Logo
-Only from a dropped-in logo, or to slot's generated label. Box art is only ever read for a
-ground colour, never shown.
+The studio reads art from two sets, each a folder of CRC-named images with an `index.json`:
+GB, GBC and GBA art from Brandon's set at `https://art.slot-cfw.fyi/` (`?art=` points elsewhere),
+NES and SNES art from this fork's own set at `https://felipecpaiva.github.io/slot-nes-snes-art/`
+(`?art_retro=` points elsewhere). An empty value turns that set off. A set that fails to load
+leaves only its own platforms on slot's generated labels or a dropped-in logo; the other set
+still works. Box art is only ever read for a ground colour, never shown.
 
 ## Building against slot-nes-snes
 
-The studio compiles slot's own cart code from a slot checkout beside it, `../slot`, pinned by
-`slot.ref`. In this fork `../slot` must be slot v1.6.0 with slot-nes-snes's patches applied,
-which is the `work/slot` tree slot-nes-snes builds (`task work:init` then `task work:resume`
-there). `slot.ref` names that tree's head commit as it was built here, `4f4c732`, for patches
-0001 to 0018. A `work/slot` built elsewhere holds the same files under a different commit, so
-write its head into `slot.ref` before `task slot:pin-check`, which says whether the cart face
-still matches.
+The studio compiles slot's own cart code from a slot checkout beside it, `../slot`. In this fork
+`../slot` is slot v1.6.0 with slot-nes-snes's patches applied, which is not a commit anywhere:
+`slot-nes-snes.ref` names the
+[slot-nes-snes](https://github.com/felipecpaiva/slot-nes-snes) commit that rebuilds it, from
+slot's release tarball (sha256 checked against that commit's `SLOT_PIN`) and that commit's
+`patches/`. The Pages workflow does exactly this; on a desk:
 
 ```sh
-# the desk: the studio and the patched slot side by side
-git clone <slot-nes-snes> && (cd slot-nes-snes && task work:init && task work:resume)
-git clone --branch nes-snes <this fork> slot-cart-studio
-git clone slot-nes-snes/work/slot slot          # ../slot for the studio
+mkdir desk && cd desk
+git clone https://github.com/felipecpaiva/slot-nes-snes
+git clone --branch nes-snes https://github.com/felipecpaiva/slot-cart-studio
+git -C slot-nes-snes checkout --detach "$(cat slot-cart-studio/slot-nes-snes.ref)"
+sh slot-nes-snes/scripts/fetch-slot.sh fetch "$PWD/slot"       # ../slot for the studio
+sh slot-nes-snes/scripts/apply-patches.sh build "$PWD/slot"
 
 cd slot-cart-studio
 task test       # cargo test, then node --test web/*.test.mjs
@@ -52,14 +54,42 @@ task test       # cargo test, then node --test web/*.test.mjs
 task serve      # wasm-pack build, then http://127.0.0.1:8765
 ```
 
+To move to a newer slot-nes-snes, write its commit into `slot-nes-snes.ref`, rebuild `../slot`
+as above and run `task test`: the face tests hold every face the studio draws to the one slot's
+own code draws.
+
 `task build` needs the `wasm32-unknown-unknown` target (named in `rust-toolchain.toml`) and
 wasm-pack 0.15.0. `cargo run --example identity -- <dir>` writes every GB, GBC and GBA output
-for a fixed synthetic card; run it against the original pin and this one and `diff -r` the two
-folders to check those platforms are unchanged.
+for a fixed synthetic card; run it against the original studio and this one and `diff -r` the
+two folders to check those platforms are unchanged.
 
-The Pages workflow in `.github/workflows/pages.yml` and the `CNAME` are still the original's:
-they build against upstream slot and publish to the original's domain. Both have to change
-before this fork is hosted anywhere.
+## Publishing
+
+`.github/workflows/pages.yml` builds on every push to `nes-snes` (or by hand) and publishes
+`web/` to GitHub Pages at `https://felipecpaiva.github.io/slot-cart-studio/`. There is no
+`CNAME`. The footer links the commit it was built from.
+
+## Hosting the NES/SNES art set
+
+The NES/SNES set is harvested from ScreenScraper with `tools/harvest.py` and published as its
+own repository, `slot-nes-snes-art`, on GitHub Pages (which answers cross-origin reads, so the
+studio can fetch it). Every No-Intro NES and SNES dump, one platform per run into the same
+folder; the second run adds to the first's `index.json`:
+
+```sh
+export SS_DEVID=... SS_DEVPASSWORD=... SS_SOFTNAME=...   # SS_SSID and SS_SSPASSWORD optional
+python3 -m pip install Pillow numpy                     # for the measured label look
+python3 tools/harvest.py --dat NES  --out ../slot-nes-snes-art
+python3 tools/harvest.py --dat SNES --out ../slot-nes-snes-art
+```
+
+That writes `NES/<media>/<CRC32>.png`, `SNES/<media>/<CRC32>.png` and `index.json`, the layout
+the studio reads. A run stops when ScreenScraper says the day's quota is spent; run it again and
+it skips what is already on disk. With a developer login alone (no `SS_SSID`) it never asks for
+member limits (`ssuserInfos.php` refuses a developer-only login) and paces itself at one call a
+second. The first run checks ScreenScraper's names for systems 3 and 4 and stops if they are not
+the ones `SS_EXPECT` states. The set is CC BY-NC-SA 4.0, as ScreenScraper's media are: give its
+repository that licence and a line crediting ScreenScraper.
 
 ## License
 
@@ -67,8 +97,9 @@ GPL-3.0-or-later, same as slot and the original Cart Studio. See [LICENSE](LICEN
 
 Game names and CRCs come from
 [libretro-database](https://github.com/libretro/libretro-database) (CC BY-SA 4.0); logos come
-from [ScreenScraper](https://www.screenscraper.fr/) (CC BY-NC-SA 4.0). No game art or rom is
-part of this repository.
+from [ScreenScraper](https://www.screenscraper.fr/) (CC BY-NC-SA 4.0), NES and SNES logos and labels
+by way of the [slot-nes-snes-art](https://github.com/felipecpaiva/slot-nes-snes-art) set. No game
+art or rom is part of this repository.
 
 Game Boy, NES, Super NES, Famicom and Super Famicom are trademarks of Nintendo. Not affiliated
 with Nintendo.

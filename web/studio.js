@@ -32,6 +32,7 @@ import { fetchArt, fetchDat, fetchIndex, fetchThumb, limiter } from './libretro.
 import { createEditor } from './editor.js';
 import { amend, commit } from './history.js';
 import { smallPrint } from './smallprint.js';
+import { RETRO, artSets, loadSets, setFor } from './art-sets.js';
 import { hasLog, logError, logText } from './log.js';
 import { applyFill, autoFill, available, fillCounts, fillText, wears } from './label-choice.js';
 
@@ -39,9 +40,6 @@ const $ = (id) => document.getElementById(id);
 const limit = limiter(4);
 // The GBA game code sits at 0xAC and the Game Boy header ends at 0x150; nothing past that is read.
 const HEAD = 0x150;
-// slot-nes-snes's platforms. A NES cart's variant comes from its stem, a SNES cart's from the
-// region byte in a header that can sit 4 MiB in, so a SNES rom is read whole for it.
-const RETRO = ['NES', 'SNES'];
 const FATAL = 'The studio ran out of memory or hit an internal error. Reload the page to start again.';
 const BUILD = 'dev';
 
@@ -110,7 +108,7 @@ function newCart({ platform, stem, file }) {
 
 const realPathOf = (c) => {
   const key = c.rejected ? null : artKey(c);
-  return (key && artIndex?.[key]?.['support-texture']) || null;
+  return (key && indexOf(c)?.[key]?.['support-texture']) || null;
 };
 
 const realOf = (c) => (c.real && c.real.path === realPathOf(c) ? c.real : null);
@@ -151,10 +149,10 @@ const baseDeep = (c) => lookOf(c)?.ground ?? Array.from(stopsOf(c)).slice(0, 3);
 const hex = (rgb) => `#${[...rgb].map((v) => v.toString(16).padStart(2, '0')).join('')}`;
 // A checksum as the set names its files: eight upper case hex digits.
 const crcHex = (crc) => crc.toString(16).toUpperCase().padStart(8, '0');
-// Our own set, published beside the studio. `?art=` points at another, a local one while it is
-// being harvested, and an empty `?art=` leaves every cart to libretro.
-const ART_BASE = new URLSearchParams(location.search).get('art') ?? 'https://art.slot-cfw.fyi/';
-let artIndex = null;
+// The art set a cart's platform takes its art from (art-sets.js has the two and their params).
+const ART = artSets(location.search);
+const indexOf = (c) => setFor(ART, c.platform).index;
+const baseOf = (c) => setFor(ART, c.platform).base;
 const fromHex = (value) => [1, 3, 5].map((at) => parseInt(value.slice(at, at + 2), 16));
 // A sure look from the art set, or null: anything missing, unsure or malformed counts as no look.
 const rgbOf = (h) => (typeof h === 'string' && /^[0-9a-f]{6}$/i.test(h) ? fromHex(`#${h}`) : null);
@@ -452,7 +450,7 @@ function fetchReal(s, c) {
   real.pending = (async () => {
     let bytes = null;
     try {
-      bytes = await limit(async () => (s === session && !fatal ? fetchArt(ART_BASE, path) : null));
+      bytes = await limit(async () => (s === session && !fatal ? fetchArt(baseOf(c), path) : null));
       if (bytes && !readable(bytes)) bytes = null;
     } catch (e) {
       if (trapped(e)) return;
@@ -597,6 +595,8 @@ async function identify(s) {
       // so a code read from there is opcode bytes dressed up as one.
       c.code = c.platform === 'GBA' ? header_code(head) : '';
       if (c.platform === 'GB' || c.platform === 'GBC') c.head = head;
+      // A SNES cart's variant comes from the region byte in a header that can sit 4 MiB in, so the
+      // rom is read whole for it.
       if (c.platform === 'SNES') c.head = snes_head(new Uint8Array(await file.arrayBuffer()));
       const label = s.source.labels.get(labelKey(c.platform, c.stem));
       if (label) {
@@ -676,7 +676,7 @@ function artKey(c) {
   // A NES or SNES cart takes only art filed under its own folder, so a checksum another console's
   // dump shares can never dress it in that console's label.
   if (!RETRO.includes(c.platform) || !key) return key;
-  const paths = Object.values(artIndex?.[key] ?? {}).filter((v) => typeof v === 'string');
+  const paths = Object.values(indexOf(c)?.[key] ?? {}).filter((v) => typeof v === 'string');
   return paths.every((p) => p.startsWith(`${c.platform}/`)) ? key : null;
 }
 
@@ -684,7 +684,7 @@ function anyArtKey(c) {
   const own = c.crc === null ? null : crcHex(c.crc);
   const db = dats.get(c.platform);
   if (!c.game || !db || (c.crc !== null && db.game_for(c.crc) === c.game)) return own;
-  return Array.from(db.crcs_for(c.game), crcHex).find((k) => artIndex?.[k]) ?? null;
+  return Array.from(db.crcs_for(c.game), crcHex).find((k) => indexOf(c)?.[k]) ?? null;
 }
 
 // Fetch what `c.game` names and let it decide the cart's hue. The Game row re-runs this for a game
@@ -694,7 +694,7 @@ async function dress(s, c) {
   // dressed from it. libretro is found by name, so those requests only happen when there is one.
   const name = c.game ? thumbnail_name(c.game) : null;
   const key = artKey(c);
-  c.look = parseLook(key && artIndex?.[key]?.look);
+  c.look = parseLook(key && indexOf(c)?.[key]?.look);
   // The queue is shared, so a card replaced while its jobs wait gives up their turns without
   // a request instead of making the new card wait behind its downloads.
   const thumb = (folder) =>
@@ -705,10 +705,10 @@ async function dress(s, c) {
         ).catch(noImage);
   // Logos come from our own set alone, by checksum; libretro is asked only for box art.
   const ours = (media) => {
-    const path = key && artIndex?.[key]?.[media];
+    const path = key && indexOf(c)?.[key]?.[media];
     if (!path) return Promise.resolve(null);
     return limit(async () =>
-      s === session && !fatal ? fetchArt(ART_BASE, path) : null,
+      s === session && !fatal ? fetchArt(baseOf(c), path) : null,
     ).catch(noImage);
   };
   // The ground's colour is read off the box art, so that request starts now and is waited on
@@ -1112,16 +1112,13 @@ const editor = createEditor({
 async function start() {
   await init();
   for (const platform of PLATFORMS) faceBox.set(platform, Array.from(cart_size(platform)));
-  // A set of our own, if the address named one. Not having it is not a failure: every cart falls
-  // back to libretro, which is all the page had before there was a set to point at.
-  if (ART_BASE) {
-    try {
-      artIndex = await fetchIndex(ART_BASE);
-      console.info(`art set: ${Object.keys(artIndex).length} checksums from ${ART_BASE}`);
-    } catch (e) {
-      banner(`The art set at ${ART_BASE} didn’t load (${e.message}), so carts get slot’s own labels.`);
-    }
+  // The art sets the address names. Not having one is not a failure: its carts fall back to
+  // libretro, which is all the page had before there was a set to point at.
+  const artFailed = await loadSets(ART, fetchIndex);
+  for (const set of Object.values(ART)) {
+    if (set.index) console.info(`art set: ${Object.keys(set.index).length} checksums from ${set.base}`);
   }
+  if (artFailed) banner(artFailed);
   const direct = 'showDirectoryPicker' in window;
   $('pick').hidden = !direct;
   $('pick-files-label').hidden = direct;
@@ -1196,7 +1193,8 @@ async function start() {
       shells: () => (session ? session.carts.map((c) => ({ stem: c.stem, shell: c.shell })) : []),
       shellPresets: () => shell_presets(),
       editing: () => editor.current()?.stem ?? null,
-      artBase: () => ART_BASE,
+      artBase: () => ART.main.base,
+      retroArtBase: () => ART.retro.base,
       fill: () => session?.fill ?? null,
     };
   }
@@ -1207,7 +1205,7 @@ $('build').append(
   BUILD === 'dev'
     ? 'dev'
     : Object.assign(document.createElement('a'), {
-        href: `https://github.com/BrandonKowalski/slot-cart-studio/commit/${BUILD}`,
+        href: `https://github.com/felipecpaiva/slot-cart-studio/commit/${BUILD}`,
         textContent: BUILD.slice(0, 7),
       }),
 );

@@ -152,6 +152,10 @@ class QuotaSpent(Exception):
 
 def quota(c):
     """The account's own limits. Their documentation makes honouring these the client's job."""
+    if 'ssid' not in c:
+        # ssuserInfos.php needs a member login: a developer-only login gets a 403 there, so it
+        # keeps the default pace (one call a second, one thread) and no daily cap of its own.
+        return {'per_min': None, 'per_day': None, 'today': 0, 'threads': 1}
     data = call('ssuserInfos.php', c) or {}
     u = data.get('response', {}).get('ssuser', {}) or {}
     def num(*keys):

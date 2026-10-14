@@ -1,10 +1,12 @@
 name: pages
 
 # The page is static, but its WASM is built from this crate and from four of slot's own source
-# files, which is why slot is checked out beside it at the commit slot.ref names.
+# files. This fork needs slot as slot-nes-snes patches it, which is no commit anywhere, so it is
+# rebuilt from the slot-nes-snes commit slot-nes-snes.ref names: slot v1.6.0's tarball, sha256
+# checked against that commit's SLOT_PIN, with that commit's patches applied.
 on:
   push:
-    branches: [main]
+    branches: [nes-snes]
   workflow_dispatch:
 
 permissions:
@@ -31,14 +33,20 @@ jobs:
           path: slot-cart-studio
 
       - id: pin
-        run: echo "ref=$(cat slot-cart-studio/slot.ref)" >> "$GITHUB_OUTPUT"
+        run: echo "ref=$(cat slot-cart-studio/slot-nes-snes.ref)" >> "$GITHUB_OUTPUT"
 
-      # Beside the studio, as the two sit on a desk, so ../slot means the same thing here.
       - uses: actions/checkout@v7
         with:
-          repository: BrandonKowalski/slot
+          repository: felipecpaiva/slot-nes-snes
           ref: ${{ steps.pin.outputs.ref }}
-          path: slot
+          path: slot-nes-snes
+
+      # Beside the studio, as the two sit on a desk, so ../slot means the same thing here.
+      - name: slot with slot-nes-snes's patches
+        run: |
+          set -eu
+          sh slot-nes-snes/scripts/fetch-slot.sh fetch "$GITHUB_WORKSPACE/slot"
+          sh slot-nes-snes/scripts/apply-patches.sh build "$GITHUB_WORKSPACE/slot"
 
       # The channel rust-toolchain.toml pins, with the target it names.
       - name: Rust with the wasm32 target
@@ -70,15 +78,3 @@ jobs:
 
       - id: deploy
         uses: actions/deploy-pages@v4
-
-      - name: Purge Cloudflare's cache for the studio
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
-        run: |
-          set -eu
-          curl -fsS -X POST "https://api.cloudflare.com/client/v4/zones/$CLOUDFLARE_ZONE_ID/purge_cache" \
-            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-            -H "Content-Type: application/json" \
-            --data "{\"hosts\":[\"$(cat slot-cart-studio/CNAME)\"]}" \
-            | jq -e '.success'

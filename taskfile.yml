@@ -2,28 +2,6 @@ version: '3'
 
 vars:
   SLOT: ../slot
-  # What the studio's faces are made of: the four files compiled in place, slot's art.rs that
-  # src/art.rs copies, the assets they include, where `Cart` comes from, gba.rs, whose header
-  # rule src/rom.rs mirrors, gb.rs, whose header the shim answers for, and ini.rs and
-  # cart_shell.rs, which the shell choice is read and merged through.
-  # slot-nes-snes adds retro_cart.rs and retro_shell.rs (compiled in place too), nes.rs and
-  # snes.rs (the variant read; the shim restates snes.rs's header rules) and the NES/SNES assets.
-  FACE_PATHS: >-
-    crates/slot-ui/src/cart.rs crates/slot-ui/src/shell.rs crates/slot-ui/src/silhouette.rs
-    crates/slot-ui/src/text.rs crates/slot-ui/src/art.rs crates/slot-ui/src/retro_cart.rs
-    crates/slot-ui/src/retro_shell.rs crates/slot-store/src/nes.rs crates/slot-store/src/snes.rs
-    crates/slot-ui/assets/nes_cart.svg crates/slot-ui/assets/nes_cart_detail.svg
-    crates/slot-ui/assets/famicom_cart.svg crates/slot-ui/assets/famicom_cart_detail.svg
-    crates/slot-ui/assets/snes_cart.svg crates/slot-ui/assets/snes_cart_detail.svg
-    crates/slot-ui/assets/sfc_cart.svg crates/slot-ui/assets/sfc_cart_detail.svg
-    crates/slot-ui/assets/lettering_nes.png crates/slot-ui/assets/lettering_snes.png
-    crates/slot-ui/assets/cart.svg
-    crates/slot-ui/assets/cart_detail.svg crates/slot-ui/assets/gb_cart.svg
-    crates/slot-ui/assets/gb_cart_detail.svg crates/slot-ui/assets/gbc_cart.svg
-    crates/slot-ui/assets/gbc_cart_detail.svg crates/slot-ui/assets/lettering_gb.png
-    crates/slot-ui/assets/lettering_gbc.png crates/slot-ui/assets/lettering_gba.png
-    crates/slot-ui/assets/label.ttf crates/slot-store/src/scan.rs crates/slot-store/src/gba.rs
-    crates/slot-store/src/gb.rs crates/slot-store/src/ini.rs crates/slot-store/src/cart_shell.rs
 
 tasks:
   default:
@@ -45,21 +23,6 @@ tasks:
       - cargo clippy --lib --target wasm32-unknown-unknown -- -D warnings
       - cargo test
       - node --test web/*.test.mjs
-
-  slot:pin-check:
-    desc: Say whether ../slot's cart face still matches the commit in slot.ref
-    cmds:
-      - |
-        set -eu
-        pin="$(cat slot.ref)"
-        # Against the working tree, not HEAD: a local build compiles whatever ../slot has on disk.
-        if git -C {{.SLOT}} diff --quiet "$pin" -- {{.FACE_PATHS}}; then
-          echo "../slot's cart face matches slot.ref ($pin)"
-        else
-          echo "../slot's cart face has changed since slot.ref ($pin):"
-          git -C {{.SLOT}} diff --stat "$pin" -- {{.FACE_PATHS}}
-          exit 1
-        fi
 
   build:
     desc: Build the WASM package into web/pkg
