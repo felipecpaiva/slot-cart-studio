@@ -73,8 +73,10 @@ two folders to check those platforms are unchanged.
 
 The NES/SNES set is harvested from ScreenScraper with `tools/harvest.py` and published as its
 own repository, `slot-nes-snes-art`, on GitHub Pages (which answers cross-origin reads, so the
-studio can fetch it). Every No-Intro NES and SNES dump, one platform per run into the same
-folder; the second run adds to the first's `index.json`:
+studio can fetch it). The published set covers the maintainer's library (about 1630 NES and 755
+SNES carts, label scans reduced to 256-colour palettes to stay well under the Pages size limit), not
+every No-Intro dump. To harvest every dump instead, run one platform per run into the same folder;
+the second run adds to the first's `index.json`:
 
 ```sh
 export SS_DEVID=... SS_DEVPASSWORD=... SS_SOFTNAME=...   # SS_SSID and SS_SSPASSWORD optional
