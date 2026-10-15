@@ -111,6 +111,8 @@ fn sample() -> Vec<Sample> {
     vec![
         ("NES", "Probe Quest (USA)", "nes", nes_rom(), "nes"),
         ("NES", "Probe Quest (Japan)", "nes", nes_rom(), "famicom"),
+        ("NES", "Probe Quest (J)", "nes", nes_rom(), "famicom"),
+        ("NES", "Probe Quest (JU)", "nes", nes_rom(), "nes"),
         snes("Probe World (USA)", "sfc", USA, false, "snes"),
         snes("Probe World (USA) [copier]", "smc", USA, true, "snes"),
         snes("Probe World (Japan)", "sfc", JAPAN, false, "sfc"),
