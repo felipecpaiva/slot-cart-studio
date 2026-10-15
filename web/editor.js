@@ -90,6 +90,10 @@ export function createEditor(api) {
 
   const presetNamed = (hex) => api.presets().find(({ value }) => `#${value.split(' ')[1]}` === hex)?.name ?? hex;
 
+  // Visible text, so the mark is read out and is not colour alone.
+  const artBadge = () =>
+    Object.assign(document.createElement('span'), { className: 'badge art', textContent: 'art', title: 'The art set has art for this game' });
+
   function showGames() {
     const c = cart;
     const item = (text, pick, className = '') => {
@@ -104,9 +108,11 @@ export function createEditor(api) {
     };
     $('ed-hits').replaceChildren(
       ...(api.matched(c) ? [item('No match', () => change(api.noMatch), 'none')] : []),
-      ...(api.search(c, $('ed-query').value) ?? []).map((name) =>
-        item(name, () => change((c) => api.chooseGame(c, name))),
-      ),
+      ...(api.search(c, $('ed-query').value) ?? []).map((name) => {
+        const li = item(name, () => change((c) => api.chooseGame(c, name)));
+        if (api.hasArt(c, name)) li.firstChild.append(' ', artBadge());
+        return li;
+      }),
     );
   }
 

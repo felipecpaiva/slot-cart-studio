@@ -20,6 +20,22 @@ export function artSets(search) {
 
 export const setFor = (sets, platform) => (RETRO.includes(platform) ? sets.retro : sets.main);
 
+// A NES or SNES cart takes only art filed under its own folder, so a checksum another console's
+// dump shares can never dress it in that console's label. Game Boy and GBA art has no such rule.
+export function filedUnder(index, platform, key) {
+  if (!RETRO.includes(platform)) return true;
+  const paths = Object.values(index?.[key] ?? {}).filter((v) => typeof v === 'string');
+  return paths.every((p) => p.startsWith(`${platform}/`));
+}
+
+// The first of a game's checksums the set has art for, as the cart would be dressed from it once
+// that game is chosen, or null. The match picker marks a game with art by this, from the index
+// already loaded, so marking a row costs no request.
+export function filedKey(index, platform, keys) {
+  const key = keys.find((k) => index?.[k]) ?? null;
+  return key && filedUnder(index, platform, key) ? key : null;
+}
+
 // Each set loads on its own: one that fails leaves its platforms to slot's own labels and the
 // other set untouched. The failures come back as one message, since the banner holds one.
 export async function loadSets(sets, fetchIndex) {

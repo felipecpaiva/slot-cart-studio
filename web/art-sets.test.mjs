@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { artSets, loadSets, setFor } from './art-sets.js';
+import { artSets, filedKey, filedUnder, loadSets, setFor } from './art-sets.js';
 
 test('Game Boy and GBA art comes from Brandon’s set, NES and SNES art from slot-nes-snes’s', () => {
   const sets = artSets('');
@@ -43,4 +43,28 @@ test('both failing makes one message; an empty base is never fetched', async () 
   assert.equal(await loadSets(sets, async (b) => (asked.push(b), {})), null);
   assert.deepEqual(asked, ['http://b.test/']);
   assert.equal(sets.main.index, null);
+});
+
+const INDEX = {
+  AAAAAAAA: { 'support-texture': 'NES/support-texture/AAAAAAAA.png', wheel: 'NES/wheel/AAAAAAAA.png' },
+  BBBBBBBB: { 'support-texture': 'GBA/support-texture/BBBBBBBB.png', look: { ground: '000000' } },
+  CCCCCCCC: { wheel: 'SNES/wheel/CCCCCCCC.png' },
+};
+
+test('a game with art in the loaded set is found by any of its checksums', () => {
+  assert.equal(filedKey(INDEX, 'NES', ['00000000', 'AAAAAAAA']), 'AAAAAAAA');
+  assert.equal(filedKey(INDEX, 'SNES', ['CCCCCCCC']), 'CCCCCCCC', 'a logo alone is art');
+  assert.equal(filedKey(INDEX, 'GBA', ['BBBBBBBB']), 'BBBBBBBB');
+});
+
+test('a game the set has nothing for, or no loaded set, has no art', () => {
+  assert.equal(filedKey(INDEX, 'NES', ['00000000']), null);
+  assert.equal(filedKey(INDEX, 'NES', []), null);
+  assert.equal(filedKey(null, 'NES', ['AAAAAAAA']), null);
+});
+
+test('a NES or SNES game has no art from another console’s folder', () => {
+  assert.equal(filedKey(INDEX, 'SNES', ['AAAAAAAA']), null);
+  assert.equal(filedKey(INDEX, 'NES', ['BBBBBBBB']), null);
+  assert.equal(filedUnder(INDEX, 'GB', 'AAAAAAAA'), true, 'Game Boy and GBA art has no folder rule');
 });

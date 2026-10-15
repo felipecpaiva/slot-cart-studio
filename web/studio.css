@@ -281,6 +281,7 @@ body.editing .cart:not(.current){opacity:.45}
 .hits button{display:block;width:100%;padding:7px 9px;border:0;border-radius:4px;background:transparent;color:var(--ink);font:inherit;font-size:14px;text-align:left;cursor:pointer;overflow-wrap:anywhere}
 .hits button:hover,.hits button:focus-visible{background:var(--housing);outline:none}
 .hits .none{color:var(--muted)}
+.hits .badge.art{margin-left:6px;padding:0 5px;border:1px solid currentColor;border-radius:3px;font-size:10px;font-weight:700;text-transform:uppercase;vertical-align:1px}
 /* Swatches are chips of the plastic itself. */
 .pal-grid{display:grid;grid-template-columns:repeat(auto-fill,26px);gap:7px}
 .pal-grid button{width:26px;height:26px;padding:0;border:0;border-radius:5px;box-shadow:inset 0 1px 0 rgba(255,255,255,.35),inset 0 -1px 0 rgba(0,0,0,.35),0 1px 2px rgba(0,0,0,.6);cursor:pointer}

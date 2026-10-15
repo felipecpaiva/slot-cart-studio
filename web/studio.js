@@ -32,7 +32,7 @@ import { fetchArt, fetchDat, fetchIndex, fetchThumb, limiter } from './libretro.
 import { createEditor } from './editor.js';
 import { amend, commit } from './history.js';
 import { smallPrint } from './smallprint.js';
-import { RETRO, artSets, loadSets, setFor } from './art-sets.js';
+import { artSets, filedKey, filedUnder, loadSets, setFor } from './art-sets.js';
 import { hasLog, logError, logText } from './log.js';
 import { applyFill, autoFill, available, fillCounts, fillText, wears } from './label-choice.js';
 
@@ -673,11 +673,7 @@ async function art(s, c) {
 // checksum names, else under the first dump of the game chosen for it that the set has.
 function artKey(c) {
   const key = anyArtKey(c);
-  // A NES or SNES cart takes only art filed under its own folder, so a checksum another console's
-  // dump shares can never dress it in that console's label.
-  if (!RETRO.includes(c.platform) || !key) return key;
-  const paths = Object.values(indexOf(c)?.[key] ?? {}).filter((v) => typeof v === 'string');
-  return paths.every((p) => p.startsWith(`${c.platform}/`)) ? key : null;
+  return key && filedUnder(indexOf(c), c.platform, key) ? key : null;
 }
 
 function anyArtKey(c) {
@@ -1098,6 +1094,10 @@ const editor = createEditor({
   ensureTiles,
   canShell: (c) => !c.looking && ['ready', 'has-label', 'needs-logo', 'unfilled'].includes(stateOf(c)) && shell_key_ok(c.stem),
   search: (c, query) => dats.get(c.platform)?.search(query, 30) ?? null,
+  hasArt: (c, name) => {
+    const db = dats.get(c.platform);
+    return !!db && filedKey(indexOf(c), c.platform, Array.from(db.crcs_for(name), crcHex)) !== null;
+  },
   chooseGame,
   noMatch,
   readLogo,
