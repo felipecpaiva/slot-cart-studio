@@ -28,7 +28,7 @@ import init, {
   thumbnail_name,
 } from './pkg/slot_cart_studio.js';
 import { fromDirectory, fromFiles, labelKey, PLATFORMS } from './card.js';
-import { fetchArt, fetchDat, fetchIndex, fetchThumb, limiter } from './libretro.js';
+import { fetchArt, fetchDat, fetchIndex, fetchThumb, limiter, logoFor } from './libretro.js';
 import { createEditor } from './editor.js';
 import { amend, commit } from './history.js';
 import { smallPrint } from './smallprint.js';
@@ -703,7 +703,8 @@ async function dress(s, c) {
       : limit(async () =>
           s === session && !fatal ? fetchThumb(c.platform, folder, name, stub_target) : null,
         ).catch(noImage);
-  // Logos come from our own set alone, by checksum; libretro is asked only for box art.
+  // Logos come from our own set by checksum, and from libretro by name only for a game the set has
+  // no art for at all (logoFor). Box art is only ever read for its hue.
   const ours = (media) => {
     const path = key && indexOf(c)?.[key]?.[media];
     if (!path) return Promise.resolve(null);
@@ -715,9 +716,10 @@ async function dress(s, c) {
   // after the logo.
   const boxJob = thumb('Named_Boxarts');
   if (!c.logoBytes) {
-    const logo = await ours('wheel');
+    const at = { platform: c.platform, name, hasReal: !!realPathOf(c) };
+    const logo = await logoFor(at, () => ours('wheel'), () => thumb('Named_Logos'), readable);
     if (s !== session || fatal) return;
-    c.logoBytes = logo && readable(logo) ? logo : null;
+    c.logoBytes = logo;
     // How bright the logo is decides which way its ground goes, so it is measured with the logo.
     c.logoLuma = c.logoBytes ? logo_luma(c.logoBytes) : 255;
   }

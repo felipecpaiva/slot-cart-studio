@@ -79,3 +79,19 @@ export async function fetchThumb(platform, folder, name, stubTarget) {
   const target = stubTarget(body);
   return target === undefined ? body : get(target);
 }
+
+// The platforms whose thumbnail repository has a Named_Logos folder. Game Boy Color's has none
+// (tools/harvest.py says so), which is why the art sets exist.
+export const LOGOS = ['GB', 'GBA', 'NES', 'SNES'];
+
+// A cart's logo: its art set's own, else, for a game the set has no art for at all (no label scan
+// and no logo), libretro's Named_Logos by name. Only ever a logo: never box art or a screenshot.
+// `ours` and `theirs` fetch, or give null for what isn't there; null back means slot's own label.
+// The idea is bently0602's (github.com/bently0602/slot-cart-studio, GPL-3.0).
+export async function logoFor({ platform, name, hasReal }, ours, theirs, readable) {
+  const own = await ours();
+  if (own && readable(own)) return own;
+  if (hasReal || !name || !LOGOS.includes(platform)) return null;
+  const logo = await theirs(name);
+  return logo && readable(logo) ? logo : null;
+}

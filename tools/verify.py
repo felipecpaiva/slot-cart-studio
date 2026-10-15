@@ -342,11 +342,12 @@ def main():
         page.eval('performance.setResourceTimingBufferSize(10000)')
         first = open_card(page, 'card', ['Games/' + g for g in games])
 
-        # Logos come from the curated set alone: nothing is asked of libretro's logo folders.
-        asked = page.eval("performance.getEntriesByType('resource').map(e => e.name).filter(n => n.includes('/Named_Logos/'))")
+        # libretro is asked for box art (its hue) and, for a game the set has no art for, a logo:
+        # never a screenshot or a title screen, which are not labels.
+        asked = page.eval("performance.getEntriesByType('resource').map(e => e.name).filter(n => n.includes('libretro-thumbnails') && !/[/]Named_(Boxarts|Logos)[/]/.test(n))")
         if asked:
-            sys.exit(f'the page asked libretro for {len(asked)} logos, e.g. {asked[0]}')
-        print('asserted: no logo is asked of libretro-thumbnails')
+            sys.exit(f'the page asked libretro for {len(asked)} images that are neither box art nor logos, e.g. {asked[0]}')
+        print('asserted: only box art and logos are asked of libretro-thumbnails')
 
         # The write button sits on the platform tabs' row, at its right end.
         where_btn = page.eval("""(() => {
@@ -427,7 +428,8 @@ def main():
         # Credits name every source and its terms, whichever of them this visit used.
         links = page.eval("[...document.querySelectorAll('.credits a')].filter(a => a.getClientRects().length).map(a => a.href)")
         need = ['https://github.com/libretro/libretro-database', 'https://creativecommons.org/licenses/by-sa/4.0/',
-                'https://www.screenscraper.fr/', 'https://creativecommons.org/licenses/by-nc-sa/4.0/']
+                'https://www.screenscraper.fr/', 'https://creativecommons.org/licenses/by-nc-sa/4.0/',
+                'https://github.com/libretro-thumbnails']
         missing = [u for u in need if not any(l.startswith(u) for l in links)]
         if missing:
             sys.exit(f'the credits are missing {missing}')
