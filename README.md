@@ -21,7 +21,8 @@ two consoles to slot. Game Boy and GBA carts behave exactly as in the original.
   `famicom`, `snes` and `sfc` words to `Labels/cart_shell.txt`.
 - Identification against libretro-database's No-Intro dats: a NES rom is hashed whole, iNES
   header included (that dat lists headered dumps); a SNES rom drops a 512-byte copier header
-  when its size is 512 past a whole KiB.
+  when its size is 512 past a whole KiB, and falls back to the whole file's CRC when neither the
+  dat nor the art set knows the headerless one.
 - `tools/harvest.py` knows NES (ScreenScraper system 3) and SNES (system 4).
 
 The studio reads art from two sets, each a folder of CRC-named images with an `index.json`:

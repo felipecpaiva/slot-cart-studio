@@ -32,6 +32,7 @@ import { fetchArt, fetchDat, fetchIndex, fetchThumb, limiter } from './libretro.
 import { createEditor } from './editor.js';
 import { amend, commit } from './history.js';
 import { smallPrint } from './smallprint.js';
+import { knownCrc, romCrcs } from './crc.js';
 import { artSets, filedKey, filedUnder, loadSets, setFor } from './art-sets.js';
 import { hasLog, logError, logText } from './log.js';
 import { applyFill, autoFill, available, fillCounts, fillText, wears } from './label-choice.js';
@@ -79,6 +80,8 @@ function newCart({ platform, stem, file }) {
     shellOnCard: '',
     existingPng: null,
     crc: null,
+    // A SNES rom's whole-file checksum, when its headerless one left a copier header out.
+    rawCrc: null,
     game: null,
     // Logos stay PNG bytes, which are small. The label made from one is not kept: see withLabel.
     logoBytes: null,
@@ -547,15 +550,15 @@ async function open(source) {
   track(identify(session));
 }
 
-// Hashed the way the platform's dat is: a SNES copier header is left out.
-async function crcOf(platform, file) {
-  const crc = new Crc32();
-  const reader = file.slice(crc_skip(platform, file.size)).stream().getReader();
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) return crc.finish();
-    crc.update(value);
-  }
+// Hashed the way the platform's dat is, a SNES copier header left out, and kept whole as well
+// when there was one to leave out (crc.js).
+const crcsOf = (platform, file) => romCrcs(file, crc_skip(platform, file.size), Crc32);
+
+// The checksum a cart is looked up by, once its platform's dat is in: see knownCrc.
+function settleCrc(c) {
+  const db = dats.get(c.platform);
+  const known = (crc) => !!db?.game_for(crc) || filedKey(indexOf(c), c.platform, [crcHex(crc)]) !== null;
+  c.crc = knownCrc(c.crc, c.rawCrc, known);
 }
 
 async function identify(s) {
@@ -606,7 +609,7 @@ async function identify(s) {
         c.existing = existing_face(bytes, c.platform, c.code, c.head, c.shell, c.stem);
         c.looking = false;
       } else {
-        c.crc = await crcOf(c.platform, file);
+        Object.assign(c, await crcsOf(c.platform, file));
       }
     } catch (e) {
       if (trapped(e)) return;
@@ -659,6 +662,7 @@ async function art(s, c) {
   c.looking = true;
   paint(c);
   try {
+    settleCrc(c);
     c.game = dats.get(c.platform)?.game_for(c.crc) ?? null;
     await dress(s, c);
   } catch (e) {
@@ -1015,9 +1019,10 @@ function shellOf(c) {
 async function lookUp(s, c) {
   paint(c);
   try {
-    if (c.crc === null) c.crc = await crcOf(c.platform, await c.file());
+    if (c.crc === null) Object.assign(c, await crcsOf(c.platform, await c.file()));
     if (!dats.has(c.platform)) dats.set(c.platform, Dat.parse(await fetchDat(c.platform)));
     if (s !== session || fatal) return;
+    settleCrc(c);
     c.game = dats.get(c.platform).game_for(c.crc) ?? null;
     await dress(s, c);
   } catch (e) {
