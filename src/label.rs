@@ -382,10 +382,17 @@ impl Label {
 
     /// A whole label, cropped to fill the platform's label as slot's cover would, so nothing of
     /// it is shrunk. Transparent pixels go over black, as the opaque PNG written for it has them.
+    /// A NES or SNES scan taller than its well keeps its top rows, where the printed title is:
+    /// a SNES scan is about 2.3 to 1 in a 3 to 1 well, and a centred crop cut Yoshi's Island's
+    /// "Super Mario World 2" line.
     pub fn full(png: &[u8], well: impl Into<Well>) -> Option<Label> {
-        let (art, w, h) = art::decode(png)?;
+        let well = well.into();
+        let (art, w, mut h) = art::decode(png)?;
         let (lw, lh) = size(well);
-        let mut rgba = art::cover_rgba(&art, w, h, lw, lh)?;
+        if matches!(well, Well::Retro(_)) {
+            h = h.min(((w as u64 * lh as u64 + lw as u64 / 2) / lw as u64).max(1) as u32);
+        }
+        let mut rgba = art::cover_rgba(&art[..(w * h * 4) as usize], w, h, lw, lh)?;
         for p in rgba.chunks_exact_mut(4) {
             let a = p[3] as u32;
             for c in &mut p[..3] {
@@ -795,6 +802,30 @@ mod tests {
             rgb.chunks_exact(3).all(|p| p == [INK[0], INK[1], INK[2]]),
             "the cropped rows showed"
         );
+    }
+
+    /// slot-nes-snes's SNES and Famicom wells are wider than their scans, so the crop takes rows.
+    /// It takes them from the bottom: the title sits at the top of the label.
+    #[test]
+    fn a_retro_full_label_keeps_the_scans_top_rows() {
+        let (sw, sh) = (600, 257);
+        let mut art = solid(sw, sh);
+        for y in 0..10 {
+            for x in 0..sw {
+                let i = ((y * sw + x) * 4) as usize;
+                art[i..i + 4].copy_from_slice(&[250, 0, 0, 255]);
+            }
+        }
+        for name in ["snes", "sfc", "famicom"] {
+            let label = Label::full(&png_of(&art, sw, sh), Well::parse(name)).expect("decodes");
+            let (rgb, w, _) = rgb_of(&label.png());
+            let mid = ((w / 2) * 3) as usize;
+            assert_eq!(
+                &rgb[mid..mid + 3],
+                &[250, 0, 0],
+                "{name}: the top row was cropped"
+            );
+        }
     }
 
     #[test]
