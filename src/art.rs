@@ -41,23 +41,32 @@ fn with<R>(label: Stashed, f: impl FnOnce(&Path) -> R) -> R {
     out
 }
 
-/// Slot's signature. `path` is the stash key `face` handed to `cart_face`.
-pub(crate) fn cover(path: &Path, w: u32, h: u32) -> Option<Vec<u8>> {
+/// Slot's `cover_rows` signature (slot-nes-snes patch 0023, which slot's own `cover` wraps).
+/// `path` is the stash key `face` handed to `cart_face`. With `top`, a scan taller than the box
+/// keeps its top rows and loses rows from the bottom, so a NES or SNES label keeps its title.
+pub(crate) fn cover_rows(path: &Path, w: u32, h: u32, top: bool) -> Option<Vec<u8>> {
     if path != Path::new(KEY) {
         return None;
     }
     STASH.with(|s| match s.borrow().as_ref()? {
         Stashed::Png(bytes) => {
             let (src, sw, sh) = decode(bytes)?;
-            cover_rgba(&src, sw, sh, w, h)
+            cover_rgba_rows(&src, sw, sh, w, h, top)
         }
-        Stashed::Rgba { px, w: sw, h: sh } => cover_rgba(px, *sw, *sh, w, h),
+        Stashed::Rgba { px, w: sw, h: sh } => cover_rgba_rows(px, *sw, *sh, w, h, top),
     })
 }
 
 pub(crate) fn cover_rgba(src: &[u8], sw: u32, sh: u32, w: u32, h: u32) -> Option<Vec<u8>> {
+    cover_rgba_rows(src, sw, sh, w, h, false)
+}
+
+fn cover_rgba_rows(src: &[u8], sw: u32, mut sh: u32, w: u32, h: u32, top: bool) -> Option<Vec<u8>> {
     if sw == 0 || sh == 0 {
         return None;
+    }
+    if top {
+        sh = sh.min(((sw as u64 * h as u64 + w as u64 / 2) / w as u64).max(1) as u32);
     }
 
     let scale = (w as f32 / sw as f32).max(h as f32 / sh as f32);
