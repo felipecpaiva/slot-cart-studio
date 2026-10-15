@@ -57,5 +57,7 @@ test('libretro is not asked for a cart with a label scan, no name, or no Named_L
   assert.equal(await logo({ hasReal: true }, null), null);
   assert.equal(await logo({ name: null }, null), null);
   assert.equal(await logo({ platform: 'GBC' }, null), null);
+  assert.equal(await logo({ platform: 'GB' }, null), null);
+  assert.equal(await logo({ platform: 'GBA' }, null), null);
   assert.deepEqual(asked, []);
 });

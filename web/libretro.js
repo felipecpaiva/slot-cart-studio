@@ -82,7 +82,8 @@ export async function fetchThumb(platform, folder, name, stubTarget) {
 
 // The platforms whose thumbnail repository has a Named_Logos folder. Game Boy Color's has none
 // (tools/harvest.py says so), which is why the art sets exist.
-export const LOGOS = ['GB', 'GBA', 'NES', 'SNES'];
+// NES and SNES only: GB and GBA keep the original studio's curated-logos behaviour.
+export const LOGOS = ['NES', 'SNES'];
 
 // A cart's logo: its art set's own, else, for a game the set has no art for at all (no label scan
 // and no logo), libretro's Named_Logos by name. Only ever a logo: never box art or a screenshot.

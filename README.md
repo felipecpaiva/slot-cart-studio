@@ -7,8 +7,7 @@ This is a fork of [Brandon Kowalski's Cart Studio](https://github.com/BrandonKow
 (the original runs at [studio.slot-cfw.fyi](https://studio.slot-cfw.fyi) and covers GB, GBC and
 GBA). The fork adds NES and SNES carts for
 [slot-nes-snes](https://github.com/felipecpaiva/slot-nes-snes), the patch set that brings those
-two consoles to slot. Game Boy and GBA carts behave as in the original, except that a game
-Brandon's art set has nothing for can take a logo from libretro (below).
+two consoles to slot. Game Boy and GBA carts behave exactly as in the original.
 
 ## What the fork adds
 
@@ -31,8 +30,8 @@ GB, GBC and GBA art from Brandon's set at `https://art.slot-cfw.fyi/` (`?art=` p
 NES and SNES art from this fork's own set at `https://felipecpaiva.github.io/slot-nes-snes-art/`
 (`?art_retro=` points elsewhere). An empty value turns that set off. A cart whose game its set
 has no art for at all (no label scan and no logo) takes the game's logo from libretro-thumbnails'
-`Named_Logos`, on NES, SNES, Game Boy and GBA (libretro has no Game Boy Color logos); without
-one it keeps slot's generated label. A set that fails to load leaves only its own platforms on
+`Named_Logos`, on NES and SNES only (Game Boy, GBC and GBA keep the original's curated-logos
+behaviour); without one it keeps slot's generated label. A set that fails to load leaves only its own platforms on
 libretro's logos, slot's generated labels or a dropped-in logo; the other set still works. Box
 art is only ever read for a ground colour, never shown, and nothing else is ever taken from
 libretro for a label.
